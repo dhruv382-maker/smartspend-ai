@@ -1,6 +1,8 @@
 import { useState } from "react";
 import axios from "axios";
 
+const BASE = "https://smartspend-backend-bsgp.onrender.com";
+
 const styles = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
@@ -393,7 +395,7 @@ export default function App() {
 
   const handleLogin = async () => {
     try {
-      const res = await axios.post("http://localhost:5000/login", { email, password });
+      const res = await axios.post(`${BASE}/login`, { email, password });
       showToast("✓ " + res.data.message, "success");
     } catch {
       showToast("✕ Login failed. Check your credentials.", "error");
@@ -406,7 +408,7 @@ export default function App() {
       return;
     }
     try {
-      const res = await axios.post("http://localhost:5000/add-expense", {
+      await axios.post(`${BASE}/add-expense`, {
         user_id: 1, title, amount, category,
       });
       showToast("✓ Expense added!", "success");
@@ -418,7 +420,7 @@ export default function App() {
 
   const getExpenses = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/expenses/1");
+      const res = await axios.get(`${BASE}/expenses/1`);
       setExpenses(res.data.expenses);
     } catch {
       showToast("✕ Could not fetch expenses.", "error");
@@ -427,7 +429,7 @@ export default function App() {
 
   const deleteExpense = async (id) => {
     try {
-      await axios.delete(`http://localhost:5000/expense/${id}`);
+      await axios.delete(`${BASE}/expense/${id}`);
       showToast("✓ Expense removed.", "success");
       setExpenses((prev) => prev.filter((e) => e.id !== id));
     } catch {
@@ -439,7 +441,7 @@ export default function App() {
     setAnalyzing(true);
     setAnalysis("");
     try {
-      const res = await axios.get("http://localhost:5000/analyze/1");
+      const res = await axios.get(`${BASE}/analyze/1`);
       setAnalysis(res.data.analysis);
     } catch {
       showToast("✕ AI analysis failed.", "error");
@@ -625,4 +627,3 @@ export default function App() {
     </>
   );
 }
-

@@ -1,629 +1,724 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 
-const BASE = "https://smartspend-backend-bsgp.onrender.com";
+// ─── Category config ────────────────────────────────────────────────────────
+const CATEGORIES = [
+  { value: "Food",          emoji: "🍔", color: "#f97316" },
+  { value: "Transport",     emoji: "🚗", color: "#3b82f6" },
+  { value: "Shopping",      emoji: "🛍️", color: "#a855f7" },
+  { value: "Education",     emoji: "📚", color: "#06b6d4" },
+  { value: "Entertainment", emoji: "🎬", color: "#ec4899" },
+  { value: "Health",        emoji: "💊", color: "#10b981" },
+  { value: "Other",         emoji: "📦", color: "#6b7280" },
+];
 
-const styles = `
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+const getCategoryMeta = (val) =>
+  CATEGORIES.find((c) => c.value === val) || CATEGORIES[6];
 
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    background: #0F1629;
-    color: #E2E8F0;
-    font-family: 'Inter', sans-serif;
-    min-height: 100vh;
-  }
-
-  .app-shell {
-    min-height: 100vh;
-    background: linear-gradient(135deg, #0F1629 0%, #161D35 50%, #0F1629 100%);
-    padding: 24px 16px 48px;
-  }
-
-  .header {
-    text-align: center;
-    margin-bottom: 32px;
-  }
-
-  .header-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: rgba(108,99,255,0.15);
-    border: 1px solid rgba(108,99,255,0.3);
-    border-radius: 20px;
-    padding: 4px 14px;
-    font-size: 11px;
-    font-weight: 600;
-    color: #6C63FF;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    margin-bottom: 12px;
-  }
-
-  .header h1 {
-    font-size: 32px;
-    font-weight: 700;
-    background: linear-gradient(135deg, #E2E8F0 0%, #6C63FF 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    letter-spacing: -0.5px;
-  }
-
-  .header p {
-    color: #64748B;
-    font-size: 14px;
-    margin-top: 6px;
-  }
-
-  .main-grid {
-    max-width: 480px;
-    margin: 0 auto;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-
-  .card {
-    background: rgba(26,35,64,0.8);
-    border: 1px solid rgba(255,255,255,0.07);
-    border-radius: 20px;
-    padding: 24px;
-    backdrop-filter: blur(12px);
-    position: relative;
-    overflow: hidden;
-  }
-
-  .card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(108,99,255,0.5), transparent);
-  }
-
-  .card-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 20px;
-  }
-
-  .card-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-    flex-shrink: 0;
-  }
-
-  .icon-purple { background: rgba(108,99,255,0.2); }
-  .icon-green  { background: rgba(34,197,94,0.15); }
-  .icon-blue   { background: rgba(56,189,248,0.15); }
-  .icon-pink   { background: rgba(236,72,153,0.15); }
-
-  .card-header h2 {
-    font-size: 15px;
-    font-weight: 600;
-    color: #E2E8F0;
-  }
-
-  .card-header p {
-    font-size: 12px;
-    color: #64748B;
-    margin-top: 1px;
-  }
-
-  .form-group {
-    margin-bottom: 14px;
-  }
-
-  .form-label {
-    display: block;
-    font-size: 11px;
-    font-weight: 600;
-    color: #64748B;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    margin-bottom: 6px;
-  }
-
-  .form-input {
-    width: 100%;
-    background: rgba(15,22,41,0.6);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 12px;
-    padding: 11px 14px;
-    color: #E2E8F0;
-    font-size: 14px;
-    font-family: 'Inter', sans-serif;
-    outline: none;
-    transition: border-color 0.2s, box-shadow 0.2s;
-  }
-
-  .form-input::placeholder { color: #334155; }
-
-  .form-input:focus {
-    border-color: rgba(108,99,255,0.5);
-    box-shadow: 0 0 0 3px rgba(108,99,255,0.1);
-  }
-
-  .form-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-  }
-
-  .btn {
-    width: 100%;
-    padding: 13px;
-    border: none;
-    border-radius: 12px;
-    font-size: 14px;
-    font-weight: 600;
-    font-family: 'Inter', sans-serif;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    margin-top: 4px;
-  }
-
-  .btn:active { transform: scale(0.98); }
-
-  .btn-primary {
-    background: linear-gradient(135deg, #6C63FF, #8B5CF6);
-    color: #fff;
-    box-shadow: 0 4px 15px rgba(108,99,255,0.3);
-  }
-
-  .btn-primary:hover {
-    box-shadow: 0 6px 20px rgba(108,99,255,0.45);
-    filter: brightness(1.05);
-  }
-
-  .btn-secondary {
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.1);
-    color: #94A3B8;
-  }
-
-  .btn-secondary:hover {
-    background: rgba(255,255,255,0.08);
-    color: #E2E8F0;
-  }
-
-  .btn-ai {
-    background: linear-gradient(135deg, #0EA5E9, #6C63FF);
-    color: #fff;
-    box-shadow: 0 4px 15px rgba(14,165,233,0.25);
-  }
-
-  .btn-ai:hover {
-    box-shadow: 0 6px 20px rgba(14,165,233,0.4);
-    filter: brightness(1.05);
-  }
-
-  .btn-sm {
-    width: auto;
-    padding: 5px 10px;
-    font-size: 11px;
-    border-radius: 8px;
-    margin-top: 0;
-    background: rgba(239,68,68,0.15);
-    border: 1px solid rgba(239,68,68,0.25);
-    color: #EF4444;
-  }
-
-  .btn-sm:hover {
-    background: rgba(239,68,68,0.25);
-  }
-
-  .expense-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .expense-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    background: rgba(15,22,41,0.5);
-    border: 1px solid rgba(255,255,255,0.05);
-    border-radius: 14px;
-    padding: 14px;
-    animation: slideIn 0.25s ease;
-  }
-
-  @keyframes slideIn {
-    from { opacity: 0; transform: translateY(-8px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-
-  .expense-emoji {
-    width: 38px;
-    height: 38px;
-    border-radius: 10px;
-    background: rgba(108,99,255,0.15);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
-    flex-shrink: 0;
-  }
-
-  .expense-info { flex: 1; min-width: 0; }
-
-  .expense-title {
-    font-size: 14px;
-    font-weight: 500;
-    color: #E2E8F0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .expense-category {
-    font-size: 11px;
-    color: #64748B;
-    margin-top: 2px;
-    text-transform: capitalize;
-  }
-
-  .expense-amount {
-    font-size: 15px;
-    font-weight: 700;
-    color: #22C55E;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-  }
-
-  .empty-state {
-    text-align: center;
-    padding: 32px 16px;
-    color: #334155;
-  }
-
-  .empty-state .emoji { font-size: 36px; margin-bottom: 10px; }
-  .empty-state p { font-size: 13px; }
-
-  .analysis-box {
-    background: rgba(15,22,41,0.5);
-    border: 1px solid rgba(108,99,255,0.15);
-    border-radius: 14px;
-    padding: 16px;
-    margin-top: 16px;
-    font-size: 14px;
-    line-height: 1.7;
-    color: #94A3B8;
-    white-space: pre-wrap;
-  }
-
-  .analysis-box p { color: #94A3B8; }
-
-  .toast {
-    position: fixed;
-    bottom: 24px;
-    left: 50%;
-    transform: translateX(-50%) translateY(0);
-    background: #1A2340;
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 12px;
-    padding: 12px 20px;
-    font-size: 13px;
-    font-weight: 500;
-    color: #E2E8F0;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-    z-index: 9999;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    animation: toastIn 0.3s ease;
-  }
-
-  @keyframes toastIn {
-    from { opacity: 0; transform: translateX(-50%) translateY(16px); }
-    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
-  }
-
-  .toast.success { border-color: rgba(34,197,94,0.3); }
-  .toast.error   { border-color: rgba(239,68,68,0.3); }
-
-  .divider {
-    height: 1px;
-    background: rgba(255,255,255,0.05);
-    margin: 4px 0 16px;
-  }
-
-  .section-actions {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 16px;
-  }
-
-  .section-actions .btn { margin-top: 0; }
-
-  .loading-dots::after {
-    content: '...';
-    animation: dots 1s steps(3, end) infinite;
-  }
-
-  @keyframes dots {
-    0%, 33% { content: '.'; }
-    66%      { content: '..'; }
-    100%     { content: '...'; }
-  }
-`;
-
-const CATEGORY_EMOJI = {
-  food: "🍔", transport: "🚌", shopping: "🛍️",
-  entertainment: "🎮", health: "💊", education: "📚",
-  utilities: "💡", other: "💰",
-};
-
-function getCategoryEmoji(cat = "") {
-  const key = cat.toLowerCase();
-  return CATEGORY_EMOJI[key] || "💰";
+// ─── Toast ───────────────────────────────────────────────────────────────────
+function Toast({ toasts }) {
+  return (
+    <div style={styles.toastContainer}>
+      {toasts.map((t) => (
+        <div
+          key={t.id}
+          style={{
+            ...styles.toast,
+            background:
+              t.type === "success"
+                ? "linear-gradient(135deg,#0d9460,#059669)"
+                : t.type === "error"
+                ? "linear-gradient(135deg,#dc2626,#b91c1c)"
+                : "linear-gradient(135deg,#2563eb,#1d4ed8)",
+          }}
+        >
+          <span style={{ fontSize: 16 }}>
+            {t.type === "success" ? "✅" : t.type === "error" ? "❌" : "ℹ️"}
+          </span>
+          {t.message}
+        </div>
+      ))}
+    </div>
+  );
 }
 
-let toastTimer = null;
-
-export default function App() {
-  const [email, setEmail] = useState("");
+// ─── Login Page ───────────────────────────────────────────────────────────────
+function LoginPage({ onLogin }) {
+  const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
-  const [title, setTitle] = useState("");
-  const [amount, setAmount] = useState("");
-  const [category, setCategory] = useState("");
-  const [expenses, setExpenses] = useState([]);
-  const [analysis, setAnalysis] = useState("");
-  const [analyzing, setAnalyzing] = useState(false);
-  const [toast, setToast] = useState(null);
-
-  const showToast = (msg, type = "success") => {
-    if (toastTimer) clearTimeout(toastTimer);
-    setToast({ msg, type });
-    toastTimer = setTimeout(() => setToast(null), 3000);
-  };
+  const [loading, setLoading]   = useState(false);
 
   const handleLogin = async () => {
+    if (!email || !password) return onLogin(null, "Please fill in all fields.");
+    setLoading(true);
     try {
-      const res = await axios.post(`${BASE}/login`, { email, password });
-      showToast("✓ " + res.data.message, "success");
-    } catch {
-      showToast("✕ Login failed. Check your credentials.", "error");
-    }
-  };
-
-  const handleExpense = async () => {
-    if (!title || !amount || !category) {
-      showToast("✕ Fill in all fields first.", "error");
-      return;
-    }
-    try {
-      await axios.post(`${BASE}/add-expense`, {
-        user_id: 1, title, amount, category,
-      });
-      showToast("✓ Expense added!", "success");
-      getExpenses();
-    } catch {
-      showToast("✕ Could not add expense.", "error");
-    }
-  };
-
-  const getExpenses = async () => {
-    try {
-      const res = await axios.get(`${BASE}/expenses/1`);
-      setExpenses(res.data.expenses);
-    } catch {
-      showToast("✕ Could not fetch expenses.", "error");
-    }
-  };
-
-  const deleteExpense = async (id) => {
-    try {
-      await axios.delete(`${BASE}/expense/${id}`);
-      showToast("✓ Expense removed.", "success");
-      setExpenses((prev) => prev.filter((e) => e.id !== id));
-    } catch {
-      showToast("✕ Delete failed.", "error");
-    }
-  };
-
-  const analyzeExpenses = async () => {
-    setAnalyzing(true);
-    setAnalysis("");
-    try {
-      const res = await axios.get(`${BASE}/analyze/1`);
-      setAnalysis(res.data.analysis);
-    } catch {
-      showToast("✕ AI analysis failed.", "error");
+      const res = await axios.post("/login", { email, password });
+      onLogin(res.data, null);
+    } catch (err) {
+      onLogin(null, err.response?.data?.message || "Login failed. Check your credentials.");
     } finally {
-      setAnalyzing(false);
+      setLoading(false);
+    }
+  };
+
+  const handleKey = (e) => { if (e.key === "Enter") handleLogin(); };
+
+  return (
+    <div style={styles.loginBg}>
+      {/* Ambient orbs */}
+      <div style={{ ...styles.orb, top: "10%",  left: "15%",  width: 300, height: 300, background: "radial-gradient(circle, rgba(99,102,241,0.18) 0%, transparent 70%)" }} />
+      <div style={{ ...styles.orb, bottom: "10%", right: "10%", width: 400, height: 400, background: "radial-gradient(circle, rgba(139,92,246,0.15) 0%, transparent 70%)" }} />
+
+      <div style={styles.loginCard}>
+        {/* Logo */}
+        <div style={styles.loginLogo}>
+          <div style={styles.logoIcon}>💸</div>
+          <div>
+            <div style={styles.logoTitle}>SmartSpend</div>
+            <div style={styles.logoSub}>AI-Powered Finance</div>
+          </div>
+        </div>
+
+        <h2 style={styles.loginHeading}>Welcome back</h2>
+        <p style={styles.loginSubheading}>Sign in to your account to continue</p>
+
+        <div style={styles.fieldGroup}>
+          <label style={styles.label}>Email address</label>
+          <input
+            style={styles.input}
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onKeyDown={handleKey}
+            onFocus={(e) => (e.target.style.borderColor = "#6366f1")}
+            onBlur={(e)  => (e.target.style.borderColor = "rgba(255,255,255,0.08)")}
+          />
+        </div>
+
+        <div style={styles.fieldGroup}>
+          <label style={styles.label}>Password</label>
+          <input
+            style={styles.input}
+            type="password"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={handleKey}
+            onFocus={(e) => (e.target.style.borderColor = "#6366f1")}
+            onBlur={(e)  => (e.target.style.borderColor = "rgba(255,255,255,0.08)")}
+          />
+        </div>
+
+        <button
+          style={{ ...styles.btnPrimary, opacity: loading ? 0.7 : 1 }}
+          onClick={handleLogin}
+          disabled={loading}
+          onMouseEnter={(e) => { if (!loading) e.target.style.transform = "translateY(-1px)"; }}
+          onMouseLeave={(e) => { e.target.style.transform = "translateY(0)"; }}
+        >
+          {loading ? (
+            <span style={styles.btnInner}><Spinner /> Logging in…</span>
+          ) : (
+            "Sign In →"
+          )}
+        </button>
+
+        <p style={styles.loginFootnote}>
+          Demo: use your registered Supabase credentials
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+function Dashboard({ user, showToast, onLogout }) {
+  const [expenses,  setExpenses]  = useState([]);
+  const [title,     setTitle]     = useState("");
+  const [amount,    setAmount]    = useState("");
+  const [category,  setCategory]  = useState("Food");
+  const [addLoading,  setAddLoading]  = useState(false);
+  const [aiLoading,   setAiLoading]   = useState(false);
+  const [aiResult,    setAiResult]    = useState("");
+  const [activeTab,   setActiveTab]   = useState("add"); // "add" | "history" | "ai"
+
+  const fetchExpenses = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const res = await axios.get(`/expenses/${user.id}`);
+      setExpenses(res.data);
+    } catch {
+      showToast("Could not load expenses.", "error");
+    }
+  }, [showToast, user]);
+
+  useEffect(() => { fetchExpenses(); }, [fetchExpenses]);
+
+  const totalSpent = expenses.reduce((s, e) => s + Number(e.amount), 0);
+
+  const handleAdd = async () => {
+    if (!title.trim() || !amount) return showToast("Fill in all expense fields.", "error");
+    setAddLoading(true);
+    try {
+      await axios.post("/add-expense", { title, amount: Number(amount), category, user_id: user.id });
+      setTitle(""); setAmount(""); setCategory("Food");
+      showToast("Expense added!", "success");
+      fetchExpenses();
+    } catch {
+      showToast("Failed to add expense.", "error");
+    } finally {
+      setAddLoading(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      await axios.delete(`/delete-expense/${id}`);
+      showToast("Expense removed.", "info");
+      fetchExpenses();
+    } catch {
+      showToast("Could not delete expense.", "error");
+    }
+  };
+
+  const handleAnalyze = async () => {
+    if (!expenses.length) return showToast("Add some expenses first!", "error");
+    setAiLoading(true); setAiResult("");
+    try {
+      const res = await axios.get(`/analyze/${user.id}`);
+      setAiResult(res.data.analysis || res.data);
+      showToast("Analysis complete!", "success");
+    } catch {
+      showToast("AI analysis failed.", "error");
+    } finally {
+      setAiLoading(false);
     }
   };
 
   return (
-    <>
-      <style>{styles}</style>
-      <div className="app-shell">
-        {/* HEADER */}
-        <div className="header">
-          <div className="header-badge">✦ AI Powered</div>
-          <h1>SmartSpend AI</h1>
-          <p>Track smarter, spend wiser</p>
+    <div style={styles.dashBg}>
+      {/* Ambient */}
+      <div style={{ ...styles.orb, top: "-5%",  left: "-5%",  width: 500, height: 500, background: "radial-gradient(circle, rgba(99,102,241,0.1) 0%, transparent 70%)" }} />
+      <div style={{ ...styles.orb, bottom: "-5%", right: "-5%", width: 600, height: 600, background: "radial-gradient(circle, rgba(139,92,246,0.08) 0%, transparent 70%)" }} />
+
+      {/* Top Nav */}
+      <nav style={styles.nav}>
+        <div style={styles.navBrand}>
+          <span style={{ fontSize: 22 }}>💸</span>
+          <span style={styles.navTitle}>SmartSpend <span style={styles.navAi}>AI</span></span>
+        </div>
+        <div style={styles.navRight}>
+          <div style={styles.navUser}>
+            <div style={styles.avatar}>{(user?.email?.[0] || "U").toUpperCase()}</div>
+            <span style={styles.navEmail}>{user?.email || "User"}</span>
+          </div>
+          <button
+            style={styles.btnLogout}
+            onClick={onLogout}
+            onMouseEnter={(e) => (e.target.style.background = "rgba(239,68,68,0.15)")}
+            onMouseLeave={(e) => (e.target.style.background = "rgba(255,255,255,0.05)")}
+          >
+            Sign Out
+          </button>
+        </div>
+      </nav>
+
+      {/* Summary Card */}
+      <div style={styles.summaryRow}>
+        <div style={styles.summaryCard}>
+          <div style={styles.summaryLabel}>Total Spent</div>
+          <div style={styles.summaryAmount}>₹{totalSpent.toFixed(2)}</div>
+          <div style={styles.summaryMeta}>{expenses.length} transaction{expenses.length !== 1 ? "s" : ""}</div>
         </div>
 
-        <div className="main-grid">
-
-          {/* LOGIN CARD */}
-          <div className="card">
-            <div className="card-header">
-              <div className="card-icon icon-purple">🔐</div>
-              <div>
-                <h2>Sign In</h2>
-                <p>Access your account</p>
+        {/* Category breakdown pills */}
+        <div style={styles.categoryPills}>
+          {CATEGORIES.slice(0, 6).map((cat) => {
+            const count = expenses.filter((e) => e.category === cat.value).length;
+            const total = expenses.filter((e) => e.category === cat.value).reduce((s, e) => s + Number(e.amount), 0);
+            if (!count) return null;
+            return (
+              <div key={cat.value} style={{ ...styles.pill, borderColor: cat.color + "44" }}>
+                <span>{cat.emoji}</span>
+                <span style={{ color: "#e2e8f0", fontSize: 12 }}>{cat.value}</span>
+                <span style={{ color: cat.color, fontWeight: 600, fontSize: 13 }}>₹{total.toFixed(0)}</span>
               </div>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Email</label>
-              <input
-                className="form-input"
-                placeholder="you@example.com"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Password</label>
-              <input
-                className="form-input"
-                placeholder="••••••••"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-            <button className="btn btn-primary" onClick={handleLogin}>
-              Sign In →
-            </button>
-          </div>
-
-          {/* ADD EXPENSE CARD */}
-          <div className="card">
-            <div className="card-header">
-              <div className="card-icon icon-green">➕</div>
-              <div>
-                <h2>Add Expense</h2>
-                <p>Log a new transaction</p>
-              </div>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Title</label>
-              <input
-                className="form-input"
-                placeholder="e.g. Lunch at café"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-              />
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Amount (₹)</label>
-                <input
-                  className="form-input"
-                  placeholder="0.00"
-                  type="number"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Category</label>
-                <input
-                  className="form-input"
-                  placeholder="e.g. Food"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                />
-              </div>
-            </div>
-            <button className="btn btn-primary" onClick={handleExpense}>
-              Add Expense
-            </button>
-          </div>
-
-          {/* EXPENSE HISTORY CARD */}
-          <div className="card">
-            <div className="card-header">
-              <div className="card-icon icon-blue">📋</div>
-              <div>
-                <h2>Expense History</h2>
-                <p>{expenses.length} transaction{expenses.length !== 1 ? "s" : ""}</p>
-              </div>
-            </div>
-            <button className="btn btn-secondary" onClick={getExpenses}>
-              ↻ Refresh
-            </button>
-            <div style={{ marginTop: "16px" }}>
-              {expenses.length === 0 ? (
-                <div className="empty-state">
-                  <div className="emoji">🧾</div>
-                  <p>No expenses yet.<br />Add one above to get started.</p>
-                </div>
-              ) : (
-                <div className="expense-list">
-                  {expenses.map((item) => (
-                    <div className="expense-item" key={item.id}>
-                      <div className="expense-emoji">
-                        {getCategoryEmoji(item.category)}
-                      </div>
-                      <div className="expense-info">
-                        <div className="expense-title">{item.title}</div>
-                        <div className="expense-category">{item.category}</div>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                        <div className="expense-amount">₹{item.amount}</div>
-                        <button
-                          className="btn btn-sm"
-                          onClick={() => deleteExpense(item.id)}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* AI ANALYSIS CARD */}
-          <div className="card">
-            <div className="card-header">
-              <div className="card-icon icon-pink">✦</div>
-              <div>
-                <h2>AI Insights</h2>
-                <p>Smart spending analysis</p>
-              </div>
-            </div>
-            <button className="btn btn-ai" onClick={analyzeExpenses} disabled={analyzing}>
-              {analyzing ? (
-                <span className="loading-dots">Analyzing</span>
-              ) : (
-                "✦ Analyze My Spending"
-              )}
-            </button>
-            {(analysis || analyzing) && (
-              <div className="analysis-box">
-                {analyzing ? (
-                  <span style={{ color: "#64748B" }}>
-                    <span className="loading-dots">Generating insights</span>
-                  </span>
-                ) : (
-                  analysis
-                )}
-              </div>
-            )}
-          </div>
-
+            );
+          })}
         </div>
       </div>
 
-      {/* TOAST */}
-      {toast && (
-        <div className={`toast ${toast.type}`}>
-          {toast.msg}
-        </div>
-      )}
+      {/* Tab Bar */}
+      <div style={styles.tabBar}>
+        {[
+          { id: "add",     label: "➕  Add Expense" },
+          { id: "history", label: `📋  History (${expenses.length})` },
+          { id: "ai",      label: "🤖  AI Analysis" },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            style={{ ...styles.tabBtn, ...(activeTab === tab.id ? styles.tabBtnActive : {}) }}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      <div style={styles.tabContent}>
+
+        {/* ── Add Expense ── */}
+        {activeTab === "add" && (
+          <div style={styles.card}>
+            <h3 style={styles.cardTitle}>New Expense</h3>
+            <p style={styles.cardSub}>Record what you spent today</p>
+
+            <div style={styles.addGrid}>
+              <div style={styles.fieldGroup}>
+                <label style={styles.label}>Expense Title</label>
+                <input
+                  style={styles.input}
+                  placeholder="e.g. Lunch at Domino's"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  onFocus={(e) => (e.target.style.borderColor = "#6366f1")}
+                  onBlur={(e)  => (e.target.style.borderColor = "rgba(255,255,255,0.08)")}
+                />
+              </div>
+              <div style={styles.fieldGroup}>
+                <label style={styles.label}>Amount (₹)</label>
+                <input
+                  style={styles.input}
+                  type="number"
+                  placeholder="0.00"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  onFocus={(e) => (e.target.style.borderColor = "#6366f1")}
+                  onBlur={(e)  => (e.target.style.borderColor = "rgba(255,255,255,0.08)")}
+                />
+              </div>
+              <div style={styles.fieldGroup}>
+                <label style={styles.label}>Category</label>
+                <select
+                  style={{ ...styles.input, cursor: "pointer" }}
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  onFocus={(e) => (e.target.style.borderColor = "#6366f1")}
+                  onBlur={(e)  => (e.target.style.borderColor = "rgba(255,255,255,0.08)")}
+                >
+                  {CATEGORIES.map((c) => (
+                    <option key={c.value} value={c.value}>
+                      {c.emoji}  {c.value}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <button
+              style={{ ...styles.btnPrimary, opacity: addLoading ? 0.7 : 1, marginTop: 8 }}
+              onClick={handleAdd}
+              disabled={addLoading}
+              onMouseEnter={(e) => { if (!addLoading) e.target.style.transform = "translateY(-1px)"; }}
+              onMouseLeave={(e) => { e.target.style.transform = "translateY(0)"; }}
+            >
+              {addLoading ? <span style={styles.btnInner}><Spinner /> Adding…</span> : "Add Expense →"}
+            </button>
+          </div>
+        )}
+
+        {/* ── History ── */}
+        {activeTab === "history" && (
+          <div style={styles.card}>
+            <h3 style={styles.cardTitle}>Expense History</h3>
+            <p style={styles.cardSub}>All your recorded transactions</p>
+
+            {expenses.length === 0 ? (
+              <div style={styles.emptyState}>
+                <div style={{ fontSize: 48 }}>🧾</div>
+                <div style={{ color: "#94a3b8", marginTop: 12 }}>No expenses yet — add your first one!</div>
+              </div>
+            ) : (
+              <div style={styles.expenseList}>
+                {[...expenses].reverse().map((exp) => {
+                  const meta = getCategoryMeta(exp.category);
+                  return (
+                    <div key={exp.id} style={styles.expenseRow}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.03)")}
+                    >
+                      <div style={{ ...styles.expEmoji, background: meta.color + "22", borderColor: meta.color + "44" }}>
+                        {meta.emoji}
+                      </div>
+                      <div style={styles.expInfo}>
+                        <div style={styles.expTitle}>{exp.title}</div>
+                        <div style={{ ...styles.expCat, color: meta.color }}>{exp.category}</div>
+                      </div>
+                      <div style={styles.expAmount}>₹{Number(exp.amount).toFixed(2)}</div>
+                      <button
+                        style={styles.deleteBtn}
+                        onClick={() => handleDelete(exp.id)}
+                        onMouseEnter={(e) => { e.target.style.background = "rgba(239,68,68,0.2)"; e.target.style.color = "#f87171"; }}
+                        onMouseLeave={(e) => { e.target.style.background = "transparent"; e.target.style.color = "#64748b"; }}
+                      >
+                        🗑
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── AI Analysis ── */}
+        {activeTab === "ai" && (
+          <div style={styles.card}>
+            <div style={styles.aiHeader}>
+              <div>
+                <h3 style={styles.cardTitle}>AI Spending Analysis</h3>
+                <p style={styles.cardSub}>Gemini-powered insights on your spending habits</p>
+              </div>
+              <div style={styles.aiBadge}>✨ Gemini AI</div>
+            </div>
+
+            <button
+              style={{ ...styles.btnAi, opacity: aiLoading ? 0.7 : 1 }}
+              onClick={handleAnalyze}
+              disabled={aiLoading}
+              onMouseEnter={(e) => { if (!aiLoading) e.target.style.transform = "translateY(-1px)"; }}
+              onMouseLeave={(e) => { e.target.style.transform = "translateY(0)"; }}
+            >
+              {aiLoading
+                ? <span style={styles.btnInner}><Spinner /> Analyzing your data…</span>
+                : "🤖 Analyze My Spending"}
+            </button>
+
+            {aiLoading && (
+              <div style={styles.aiSkeleton}>
+                {[100, 75, 88, 60].map((w, i) => (
+                  <div key={i} style={{ ...styles.skeletonLine, width: `${w}%`, animationDelay: `${i * 0.15}s` }} />
+                ))}
+              </div>
+            )}
+
+            {aiResult && !aiLoading && (
+              <div style={styles.aiResult}>
+                <div style={styles.aiResultHeader}>
+                  <span style={{ fontSize: 20 }}>🤖</span>
+                  <span style={{ color: "#a78bfa", fontWeight: 600, fontSize: 14 }}>Gemini's Analysis</span>
+                </div>
+                <div style={styles.aiResultText}>
+                  {String(aiResult).split("\n").map((line, i) => (
+                    <p key={i} style={{ margin: "6px 0", color: line.startsWith("*") || line.startsWith("-") ? "#c4b5fd" : "#cbd5e1" }}>
+                      {line}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!aiResult && !aiLoading && (
+              <div style={styles.emptyState}>
+                <div style={{ fontSize: 48 }}>🔮</div>
+                <div style={{ color: "#94a3b8", marginTop: 12 }}>Click Analyze to get AI insights on your spending patterns</div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <style>{keyframes}</style>
+    </div>
+  );
+}
+
+// ─── Spinner ─────────────────────────────────────────────────────────────────
+function Spinner() {
+  return <span style={styles.spinner} />;
+}
+
+// ─── Root App ────────────────────────────────────────────────────────────────
+export default function App() {
+  const [user,   setUser]   = useState(null);
+  const [toasts, setToasts] = useState([]);
+
+  const showToast = useCallback((message, type = "info") => {
+    const id = Date.now();
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3500);
+  }, []);
+
+  const handleLogin = (userData, error) => {
+    if (error) { showToast(error, "error"); return; }
+    setUser(userData.user);
+    showToast("Welcome back! 👋", "success");
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+  };
+
+  return (
+    <>
+      <Toast toasts={toasts} />
+      {!user
+        ? <LoginPage  onLogin={handleLogin} />
+        : <Dashboard  user={user} showToast={showToast} onLogout={handleLogout} />
+      }
     </>
   );
 }
+
+// ─── Keyframe CSS ─────────────────────────────────────────────────────────────
+const keyframes = `
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Inter', sans-serif; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  @keyframes shimmer {
+    0%   { background-position: -400px 0; }
+    100% { background-position: 400px 0; }
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(40px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  select option { background: #1e1b4b; color: #e2e8f0; }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.4); border-radius: 4px; }
+
+  input::placeholder { color: #475569; }
+  input:focus, select:focus { outline: none; }
+`;
+
+// ─── Style Objects ────────────────────────────────────────────────────────────
+const styles = {
+  // Toast
+  toastContainer: {
+    position: "fixed", top: 20, right: 20, zIndex: 9999,
+    display: "flex", flexDirection: "column", gap: 10,
+    animation: "slideIn 0.3s ease",
+  },
+  toast: {
+    padding: "12px 18px", borderRadius: 12, color: "#fff",
+    fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 500,
+    display: "flex", alignItems: "center", gap: 10,
+    boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+    animation: "slideIn 0.3s ease",
+    minWidth: 240,
+  },
+
+  // Shared
+  orb: { position: "absolute", borderRadius: "50%", pointerEvents: "none", zIndex: 0 },
+
+  // Login
+  loginBg: {
+    minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
+    background: "linear-gradient(135deg, #0a0a1a 0%, #0f0a2e 50%, #0a0a1a 100%)",
+    position: "relative", overflow: "hidden", fontFamily: "Inter, sans-serif",
+  },
+  loginCard: {
+    position: "relative", zIndex: 1, width: "100%", maxWidth: 420, padding: "44px 40px",
+    background: "rgba(255,255,255,0.04)", backdropFilter: "blur(24px)",
+    borderRadius: 24, border: "1px solid rgba(255,255,255,0.08)",
+    boxShadow: "0 32px 80px rgba(0,0,0,0.6)",
+    animation: "fadeUp 0.5s ease",
+  },
+  loginLogo: { display: "flex", alignItems: "center", gap: 14, marginBottom: 36 },
+  logoIcon:  { fontSize: 40, lineHeight: 1 },
+  logoTitle: { fontSize: 22, fontWeight: 700, color: "#f1f5f9", letterSpacing: "-0.5px" },
+  logoSub:   { fontSize: 12, color: "#6366f1", fontWeight: 500, letterSpacing: "0.5px" },
+  loginHeading:    { fontSize: 26, fontWeight: 700, color: "#f8fafc", margin: "0 0 6px", letterSpacing: "-0.5px" },
+  loginSubheading: { fontSize: 14, color: "#64748b", margin: "0 0 28px" },
+  loginFootnote:   { fontSize: 12, color: "#334155", textAlign: "center", marginTop: 20 },
+
+  // Dashboard
+  dashBg: {
+    minHeight: "100vh", background: "linear-gradient(135deg, #030712 0%, #0d0a2e 50%, #030712 100%)",
+    fontFamily: "Inter, sans-serif", position: "relative", overflow: "hidden",
+  },
+  nav: {
+    position: "sticky", top: 0, zIndex: 100,
+    display: "flex", alignItems: "center", justifyContent: "space-between",
+    padding: "0 32px", height: 64,
+    background: "rgba(3,7,18,0.8)", backdropFilter: "blur(20px)",
+    borderBottom: "1px solid rgba(255,255,255,0.06)",
+  },
+  navBrand: { display: "flex", alignItems: "center", gap: 10 },
+  navTitle: { fontSize: 18, fontWeight: 700, color: "#f1f5f9", letterSpacing: "-0.3px" },
+  navAi:    { color: "#6366f1" },
+  navRight: { display: "flex", alignItems: "center", gap: 16 },
+  navUser:  { display: "flex", alignItems: "center", gap: 10 },
+  avatar:   {
+    width: 32, height: 32, borderRadius: "50%",
+    background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+    display: "flex", alignItems: "center", justifyContent: "center",
+    fontSize: 13, fontWeight: 700, color: "#fff",
+  },
+  navEmail: { fontSize: 13, color: "#94a3b8" },
+
+  // Summary
+  summaryRow: {
+    position: "relative", zIndex: 1,
+    display: "flex", gap: 16, padding: "28px 32px 0",
+    flexWrap: "wrap", alignItems: "flex-start",
+  },
+  summaryCard: {
+    background: "linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.15))",
+    border: "1px solid rgba(99,102,241,0.3)",
+    borderRadius: 20, padding: "24px 32px",
+    backdropFilter: "blur(16px)",
+    animation: "fadeUp 0.4s ease",
+    minWidth: 200,
+  },
+  summaryLabel:  { fontSize: 12, color: "#818cf8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "1px" },
+  summaryAmount: { fontSize: 40, fontWeight: 800, color: "#f8fafc", letterSpacing: "-1.5px", margin: "6px 0 4px" },
+  summaryMeta:   { fontSize: 13, color: "#64748b" },
+  categoryPills: { display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", flex: 1 },
+  pill: {
+    display: "flex", alignItems: "center", gap: 6,
+    padding: "8px 14px", borderRadius: 20, fontSize: 13,
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid", backdropFilter: "blur(8px)",
+    animation: "fadeUp 0.4s ease",
+  },
+
+  // Tabs
+  tabBar: {
+    position: "relative", zIndex: 1,
+    display: "flex", gap: 4, padding: "20px 32px 0",
+  },
+  tabBtn: {
+    padding: "10px 20px", borderRadius: 12, border: "1px solid transparent",
+    background: "transparent", color: "#64748b", fontSize: 14, fontWeight: 500,
+    cursor: "pointer", transition: "all 0.2s", fontFamily: "Inter, sans-serif",
+  },
+  tabBtnActive: {
+    background: "rgba(99,102,241,0.15)", color: "#a5b4fc",
+    borderColor: "rgba(99,102,241,0.3)",
+  },
+  tabContent: {
+    position: "relative", zIndex: 1,
+    padding: "16px 32px 40px", maxWidth: 820, margin: "0 auto",
+  },
+
+  // Card
+  card: {
+    background: "rgba(255,255,255,0.03)", backdropFilter: "blur(20px)",
+    border: "1px solid rgba(255,255,255,0.07)", borderRadius: 24,
+    padding: 32, animation: "fadeUp 0.35s ease",
+  },
+  cardTitle: { fontSize: 20, fontWeight: 700, color: "#f1f5f9", margin: "0 0 4px", letterSpacing: "-0.3px" },
+  cardSub:   { fontSize: 14, color: "#64748b", margin: "0 0 28px" },
+
+  // Form
+  addGrid: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 },
+  fieldGroup: { display: "flex", flexDirection: "column", gap: 8 },
+  label: { fontSize: 12, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.5px" },
+  input: {
+    padding: "12px 16px", borderRadius: 12, fontSize: 14, color: "#f1f5f9",
+    background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)",
+    transition: "border-color 0.2s", fontFamily: "Inter, sans-serif",
+    width: "100%",
+  },
+
+  // Buttons
+  btnPrimary: {
+    width: "100%", padding: "14px 24px", borderRadius: 14,
+    background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+    color: "#fff", fontSize: 15, fontWeight: 600, border: "none",
+    cursor: "pointer", transition: "all 0.2s",
+    fontFamily: "Inter, sans-serif", letterSpacing: "0.2px",
+    boxShadow: "0 8px 32px rgba(99,102,241,0.35)",
+  },
+  btnAi: {
+    padding: "14px 28px", borderRadius: 14,
+    background: "linear-gradient(135deg, #7c3aed, #6366f1)",
+    color: "#fff", fontSize: 15, fontWeight: 600, border: "none",
+    cursor: "pointer", transition: "all 0.2s",
+    fontFamily: "Inter, sans-serif",
+    boxShadow: "0 8px 32px rgba(124,58,237,0.35)",
+    display: "block", marginBottom: 24,
+  },
+  btnLogout: {
+    padding: "8px 16px", borderRadius: 10,
+    background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
+    color: "#94a3b8", fontSize: 13, fontWeight: 500,
+    cursor: "pointer", transition: "all 0.2s",
+    fontFamily: "Inter, sans-serif",
+  },
+  btnInner: { display: "flex", alignItems: "center", justifyContent: "center", gap: 10 },
+
+  // Expense list
+  expenseList: { display: "flex", flexDirection: "column", gap: 2 },
+  expenseRow: {
+    display: "flex", alignItems: "center", gap: 16, padding: "14px 16px",
+    borderRadius: 14, transition: "background 0.2s", cursor: "default",
+    background: "rgba(255,255,255,0.03)",
+  },
+  expEmoji: {
+    width: 44, height: 44, borderRadius: 12, display: "flex",
+    alignItems: "center", justifyContent: "center", fontSize: 20,
+    border: "1px solid", flexShrink: 0,
+  },
+  expInfo:  { flex: 1, minWidth: 0 },
+  expTitle: { fontSize: 14, fontWeight: 600, color: "#f1f5f9", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+  expCat:   { fontSize: 12, fontWeight: 500, marginTop: 2 },
+  expAmount: { fontSize: 16, fontWeight: 700, color: "#f8fafc", letterSpacing: "-0.3px", flexShrink: 0 },
+  deleteBtn: {
+    background: "transparent", border: "none", fontSize: 16,
+    cursor: "pointer", padding: "6px 8px", borderRadius: 8,
+    color: "#64748b", transition: "all 0.2s",
+  },
+
+  // AI
+  aiHeader: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 },
+  aiBadge: {
+    padding: "5px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600,
+    background: "rgba(124,58,237,0.2)", border: "1px solid rgba(124,58,237,0.4)",
+    color: "#c4b5fd", flexShrink: 0,
+  },
+  aiResult: {
+    background: "rgba(99,102,241,0.07)", border: "1px solid rgba(99,102,241,0.2)",
+    borderRadius: 16, padding: 24, marginTop: 8,
+    animation: "fadeUp 0.4s ease",
+  },
+  aiResultHeader: {
+    display: "flex", alignItems: "center", gap: 10,
+    marginBottom: 16, paddingBottom: 12,
+    borderBottom: "1px solid rgba(255,255,255,0.07)",
+  },
+  aiResultText: { fontSize: 14, lineHeight: 1.8 },
+  aiSkeleton: { marginTop: 20, display: "flex", flexDirection: "column", gap: 10 },
+  skeletonLine: {
+    height: 14, borderRadius: 8,
+    background: "linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 100%)",
+    backgroundSize: "800px 100%",
+    animation: "shimmer 1.4s infinite",
+  },
+
+  // Empty
+  emptyState: { padding: "48px 0", textAlign: "center", color: "#64748b" },
+
+  // Spinner
+  spinner: {
+    display: "inline-block", width: 16, height: 16, borderRadius: "50%",
+    border: "2px solid rgba(255,255,255,0.2)", borderTopColor: "#fff",
+    animation: "spin 0.7s linear infinite",
+  },
+};
+
+

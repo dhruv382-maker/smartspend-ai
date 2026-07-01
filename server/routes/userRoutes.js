@@ -3,63 +3,70 @@ const express = require("express");
 const router = express.Router();
 const supabase = require("../config/supabase");
 const genAI = require("../config/gemini");
-router.post("/register", async (req, res) => {
-  try {
-    const { name, email, password } = req.body;
-const hashedPassword = await bcrypt.hash(password, 10);
 
-    const { data, error } = await supabase
-      .from("users")
-      .insert([{ name, email, password: hashedPassword }]);
-
-    if (error) {
-      return res.status(500).json({
-        error: error.message
-      });
-    }
-
-    res.json({
-      message: "User added successfully",
-      data
-    });
-
-  } catch (err) {
-    res.status(500).json({
-      error: err.message
-    });
-  }
-});
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const { data, error } = await supabase
+    if (!email || !password) {
+      return res.status(400).json({
+        message: "Email and password are required"
+      });
+    }
+
+    const { data: existingUser, error: fetchError } = await supabase
       .from("users")
       .select("*")
       .eq("email", email)
+      .maybeSingle();
+
+    if (fetchError) {
+      return res.status(500).json({
+        error: fetchError.message
+      });
+    }
+
+    // ── Existing user: verify password and log in ──
+    if (existingUser) {
+      const isMatch = await bcrypt.compare(password, existingUser.password);
+
+      if (!isMatch) {
+        return res.status(400).json({
+          message: "Wrong password"
+        });
+      }
+
+      return res.json({
+        message: "Login successful",
+        user: existingUser
+      });
+    }
+
+    // ── New user: auto-create account, then log in ──
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const { data: newUser, error: insertError } = await supabase
+      .from("users")
+      .insert([
+        {
+          name: "NewUser",
+          email: email,
+          password: hashedPassword
+        }
+      ])
+      .select()
       .single();
 
-    if (error || !data) {
-      return res.status(400).json({
-        message: "User not found"
+    if (insertError) {
+      return res.status(500).json({
+        error: insertError.message
       });
     }
 
-    const isMatch = await bcrypt.compare(
-      password,
-      data.password
-    );
-
-    if (!isMatch) {
-      return res.status(400).json({
-        message: "Wrong password"
-      });
-    }
-
-    res.json({
-  message: "Login successful",
-  user: data
-});
+    res.status(201).json({
+      message: "Account created and logged in",
+      user: newUser
+    });
 
   } catch (err) {
     res.status(500).json({
@@ -67,6 +74,7 @@ router.post("/login", async (req, res) => {
     });
   }
 });
+
 router.post("/add-expense", async (req, res) => {
   try {
     const { user_id, title, amount, category } = req.body;

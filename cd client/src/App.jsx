@@ -84,7 +84,10 @@ function LoginPage({ onLogin }) {
 
   const handleGoogleLogin = async () => {
     const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: "google"
+      provider: "google",
+      options: {
+        redirectTo: window.location.origin
+      }
     });
 
     console.log(data);
@@ -850,4 +853,3 @@ const styles = {
     animation: "spin 0.7s linear infinite",
   },
 };
-

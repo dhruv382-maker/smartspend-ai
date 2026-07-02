@@ -75,20 +75,31 @@ router.post("/login", async (req, res) => {
   }
 });
 
+// ── Add expense ──
+// user_id now comes from Supabase Google OAuth and is a UUID/string.
+// It is passed straight through to Supabase with no numeric coercion.
 router.post("/add-expense", async (req, res) => {
   try {
     const { user_id, title, amount, category } = req.body;
+
+    if (!user_id || !title || amount === undefined || amount === null || !category) {
+      return res.status(400).json({
+        message: "user_id, title, amount and category are required"
+      });
+    }
 
     const { data, error } = await supabase
       .from("expenses")
       .insert([
         {
-          user_id,
+          user_id: String(user_id),
           title,
-          amount,
+          amount: Number(amount),
           category
         }
-      ]);
+      ])
+      .select()
+      .single();
 
     if (error) {
       return res.status(500).json({
@@ -107,6 +118,9 @@ router.post("/add-expense", async (req, res) => {
     });
   }
 });
+
+// ── Get expenses for a user ──
+// userId is a Supabase UUID/string, used as-is in the query.
 router.get("/expenses/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
@@ -132,7 +146,10 @@ router.get("/expenses/:userId", async (req, res) => {
     });
   }
 });
-router.delete("/expense/:id", async (req, res) => {
+
+// ── Delete expense ──
+// Route renamed to /delete-expense/:id to match the frontend's axios call.
+router.delete("/delete-expense/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -157,6 +174,9 @@ router.delete("/expense/:id", async (req, res) => {
     });
   }
 });
+
+// ── Summary by category ──
+// userId is a Supabase UUID/string, used as-is in the query.
 router.get("/summary/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
@@ -190,6 +210,9 @@ router.get("/summary/:userId", async (req, res) => {
     });
   }
 });
+
+// ── AI analysis ──
+// userId is a Supabase UUID/string, used as-is in the query.
 router.get("/analyze/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
@@ -230,4 +253,5 @@ router.get("/analyze/:userId", async (req, res) => {
     });
   }
 });
+
 module.exports = router;
